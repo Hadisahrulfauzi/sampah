@@ -12,6 +12,7 @@ model_path = 'D:/PCD/modelResNet101_model.pth'
 
 # Memuat model yang sudah dilatih
 def load_model(model_path):
+    # Membuat model ResNet101
     model = models.resnet101(pretrained=False)  # Gunakan pretrained=False karena model sudah dilatih
     model.fc = torch.nn.Linear(model.fc.in_features, 9)  # Sesuaikan output dengan jumlah kelas
 
@@ -19,14 +20,15 @@ def load_model(model_path):
         # Memuat model ke perangkat yang sesuai (CPU atau GPU)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model.load_state_dict(torch.load(model_path, map_location=device))
+        model.to(device)  # Pastikan model berada di device yang benar (GPU atau CPU)
         model.eval()  # Set the model to evaluation mode
-        return model
+        return model, device
     else:
         st.error(f"Model tidak ditemukan di {model_path}")
-        return None
+        return None, None
 
 # Memuat model
-model = load_model(model_path)
+model, device = load_model(model_path)
 
 # Jika model gagal dimuat, hentikan eksekusi
 if model is None:
@@ -51,7 +53,9 @@ def preprocess_image(img):
     return img_tensor
 
 # Fungsi untuk memprediksi gambar
-def predict_image(img_tensor):
+def predict_image(img_tensor, device):
+    img_tensor = img_tensor.to(device)  # Pastikan tensor berada di perangkat yang benar (CPU atau GPU)
+    
     with torch.no_grad():
         outputs = model(img_tensor)  # Prediksi menggunakan model
         _, class_idx = torch.max(outputs, 1)  # Dapatkan indeks kelas yang diprediksi
@@ -75,7 +79,7 @@ if menu == "Kamera":
 
             # Preprocess gambar dan buat prediksi
             img_tensor = preprocess_image(image)
-            predicted_class, probability = predict_image(img_tensor)
+            predicted_class, probability = predict_image(img_tensor, device)
             st.write(f"Kelas yang diprediksi: {predicted_class}")
             st.write(f"Probabilitas: {probability * 100:.2f}%")
 
