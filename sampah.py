@@ -9,7 +9,7 @@ import io
 menu = st.sidebar.radio("Pilih Halaman", ["Beranda", "Kamera", "Riwayat"])
 
 # Memuat model yang sudah dilatih
-model_path = 'D:\PCD\modelResNet101_model.pth'
+model_path = 'C:\Users\LENOVO\Desktop\sampah\modelResNet50_model.pth'
 if not os.path.exists(model_path):
     st.error(f"Model tidak ditemukan di {model_path}")
 else:
