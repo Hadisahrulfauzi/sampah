@@ -10,14 +10,15 @@ menu = st.sidebar.radio("Pilih Halaman", ["Beranda", "Kamera", "Riwayat"])
 # Path model
 model_path = 'D:/PCD/modelResNet101_model.pth'
 
-# Memuat model yang sudah dilatih (Pastikan model didefinisikan dengan benar)
+# Memuat model yang sudah dilatih
 def load_model(model_path):
-    # Definisikan model ResNet101 terlebih dahulu sebelum memuat bobotnya
     model = models.resnet101(pretrained=False)  # Gunakan pretrained=False karena model sudah dilatih
     model.fc = torch.nn.Linear(model.fc.in_features, 9)  # Sesuaikan output dengan jumlah kelas
-    
+
     if os.path.exists(model_path):
-        model.load_state_dict(torch.load(model_path))
+        # Memuat model ke perangkat yang sesuai (CPU atau GPU)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()  # Set the model to evaluation mode
         return model
     else:
@@ -32,7 +33,8 @@ if model is None:
     st.stop()
 
 # Kelas yang diprediksi oleh model
-classes = ['Cardboard','Food Organics','Glass','Metal','Miscellaneous Trash','Paper','Plastic','Textile Trash','Vegetation']
+classes = ['Cardboard', 'Food Organics', 'Glass', 'Metal', 'Miscellaneous Trash', 
+           'Paper', 'Plastic', 'Textile Trash', 'Vegetation']
 
 # Transformasi untuk preprocessing gambar
 transform = transforms.Compose([
@@ -65,23 +67,26 @@ if "history" not in st.session_state:
 if menu == "Kamera":
     st.header("Unggah Gambar untuk Klasifikasi")
     uploaded_file = st.file_uploader("Pilih Gambar", type=["jpg", "jpeg", "png"])
-    
+
     if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Gambar yang diunggah", use_column_width=True)
+        try:
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Gambar yang diunggah", use_column_width=True)
 
-        # Preprocess gambar dan buat prediksi
-        img_tensor = preprocess_image(image)
-        predicted_class, probability = predict_image(img_tensor)
-        st.write(f"Kelas yang diprediksi: {predicted_class}")
-        st.write(f"Probabilitas: {probability * 100:.2f}%")
+            # Preprocess gambar dan buat prediksi
+            img_tensor = preprocess_image(image)
+            predicted_class, probability = predict_image(img_tensor)
+            st.write(f"Kelas yang diprediksi: {predicted_class}")
+            st.write(f"Probabilitas: {probability * 100:.2f}%")
 
-        # Menyimpan riwayat klasifikasi
-        st.session_state.history.append({
-            "image": uploaded_file.name,
-            "predicted_class": predicted_class,
-            "probability": probability
-        })
+            # Menyimpan riwayat klasifikasi
+            st.session_state.history.append({
+                "image": uploaded_file.name,
+                "predicted_class": predicted_class,
+                "probability": probability
+            })
+        except Exception as e:
+            st.error(f"Terjadi kesalahan saat memproses gambar: {e}")
 
 # Halaman "Riwayat" untuk melihat riwayat klasifikasi
 elif menu == "Riwayat":
