@@ -1,76 +1,91 @@
 import torch
-from torch import nn
-from torchvision import models, transforms
+import torch.nn as nn
+import torchvision.transforms as transforms
+from torchvision import models
 from PIL import Image
 import streamlit as st
+import matplotlib.pyplot as plt
+import numpy as np
 import os
 
-# Definisikan kelas sampah
-CLASSES = ['Cardboard', 'Food Organics', 'Glass', 'Metal', 'Miscellaneous Trash',  
-           'Paper', 'Plastic', 'Textile Trash', 'Vegetation']
+# Define constants
+IMG_SIZE = 224  # Image size for resizing
+CLASSES = ['Cardboard', 'Food Organics', 'Glass', 'Metal', 'Miscellaneous Trash', 'Paper', 'Plastic', 'Textile Trash', 'Vegetation']  # Replace with your actual class names
+MODEL_PATH = "modelResNet50_model.pth"  # Path to the saved model
 
-# Fungsi untuk memuat model yang sudah dilatih
+# Define transformations (same as during training)
+transform = transforms.Compose([
+    transforms.Resize((IMG_SIZE, IMG_SIZE)),  # Resize the image
+    transforms.ToTensor(),                   # Convert to tensor
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Normalize
+])
+
+# Load the model
 def load_model(model_path):
-    # Memuat ResNet50
     model = models.resnet50(pretrained=False)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, len(CLASSES))  # Output layer sesuai jumlah kelas
+    model.fc = nn.Linear(model.fc.in_features, len(CLASSES))  # Adjust the final layer to match the number of classes
 
-    # Periksa apakah file model tersedia
+    # Load the saved model weights
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found at {model_path}")
 
-    # Memuat model dengan mapping ke CPU
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+    model.eval()  # Set the model to evaluation mode
+    return model
+
+# Function to classify an uploaded image
+def classify_image(image, model):
     try:
-        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-        model.eval()  # Set model ke mode evaluasi
-        return model
+        # Convert the image to RGB and apply transformations
+        img = Image.open(image).convert("RGB")
+        img_tensor = transform(img).unsqueeze(0)  # Add a batch dimension
+
+        # Perform inference
+        with torch.no_grad():
+            outputs = model(img_tensor)
+            _, predicted = torch.max(outputs, 1)
+
+        # Get the predicted class
+        predicted_class = predicted.item()
+        predicted_class_name = CLASSES[predicted_class]
+
+        return img, predicted_class_name
+
     except Exception as e:
-        raise RuntimeError(f"Error loading model: {e}")
+        st.error(f"Error during classification: {e}")
+        return None, None
 
-
-# Fungsi untuk memproses gambar yang di-upload
-def process_image(image):
-    # Transformasi yang diperlukan untuk gambar input
-    preprocess = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),  # Standard ResNet normalization
-    ])
-    img_tensor = preprocess(image)
-    img_tensor = img_tensor.unsqueeze(0)  # Tambah dimensi batch
-    return img_tensor
-
-# Fungsi untuk melakukan prediksi
-def predict(image, model):
-    img_tensor = process_image(image)
-    with torch.no_grad():  # Menonaktifkan gradient tracking
-        output = model(img_tensor)  # Melakukan prediksi
-    _, predicted_class = torch.max(output, 1)
-    return CLASSES[predicted_class.item()]
-
-# Main Streamlit UI
+# Streamlit app
 def main():
-    st.title("Prediksi Kelas Sampah Menggunakan ResNet50")
-    
-    # Upload gambar
-    uploaded_file = st.file_uploader("Upload Gambar Sampah", type=["jpg", "jpeg", "png"])
-    
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Gambar yang di-upload", use_column_width=True)
+    st.title("Image Classification with ResNet50")
 
-        # Muat model
-        model_path = "modelResNet50_model.pth"  # Sesuaikan path model Anda
-        if os.path.exists(model_path):
-            model = load_model(model_path)
+    # Upload an image
+    uploaded_file = st.file_uploader("Upload an Image", type=["jpg", "jpeg", "png"])
+
+    if uploaded_file is not None:
+        # Display the uploaded image
+        st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+
+        # Load the model
+        try:
+            model = load_model(MODEL_PATH)
+        except Exception as e:
+            st.error(f"Error loading model: {e}")
+            return
+
+        # Classify the image
+        img, predicted_class_name = classify_image(uploaded_file, model)
+
+        if img is not None:
+            # Display the result
+            st.write(f"Predicted Class: {predicted_class_name}")
             
-            # Prediksi kelas
-            predicted_class = predict(image, model)
-            st.write(f"Prediksi Kelas Sampah: {predicted_class}")
-        else:
-            st.error("Model tidak ditemukan. Pastikan file modelresnet.pth ada di direktori yang sesuai.")
+            # Show the image with Matplotlib (optional)
+            fig, ax = plt.subplots()
+            ax.imshow(np.array(img))
+            ax.set_title(f"Predicted Class: {predicted_class_name}")
+            ax.axis("off")
+            st.pyplot(fig)
 
 if __name__ == "__main__":
     main()
