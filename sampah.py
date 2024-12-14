@@ -4,7 +4,6 @@ import torchvision.transforms as transforms
 from torchvision import models
 from PIL import Image
 import streamlit as st
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 
